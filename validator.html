@@ -2,10 +2,20 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Key Validator</title>
+    <title>Key Validator - DEBUG MODE</title>
+    <style>
+        body { font-family: monospace; background-color: #f0f0f0; padding: 1em; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background-color: #fff; padding: 1em; border: 1px solid #ccc; }
+        .success { color: green; font-weight: bold; }
+        .fail { color: red; font-weight: bold; }
+    </style>
 </head>
 <body>
-    <pre id="status">INVALID</pre>
+    <h1>Hasil Diagnosis Validator</h1>
+    <pre id="debug-output">Memulai diagnosis...</pre>
+    <hr>
+    <h2>Kesimpulan Akhir:</h2>
+    <pre id="status">MENUNGGU HASIL</pre>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -14,44 +24,73 @@
         const firebaseConfig = {
           apiKey: "AIzaSyDCZrt54NfMZkTzpsX-ZJBhA2Qh9a4ATQU",
           authDomain: "keycodm-add11.firebaseapp.com",
-          databaseURL: "https://keycodm-add11-default-rtdb.asia-southeast1.firebasedatabase.app",
           projectId: "keycodm-add11",
           storageBucket: "keycodm-add11.appspot.com",
           messagingSenderId: "203989625230",
-          appId: "1:203989625230:web:7fd9631e5fa9d02e76dcdf",
-          measurementId: "G-6PDW8Z787R"
+          appId: "1:203989625230:web:7fd9631e5fa9d02e76dcdf"
         };
 
+        const debugElement = document.getElementById('debug-output');
+        const statusElement = document.getElementById('status');
+        let debugLog = "";
+
+        function log(message) {
+            console.log(message);
+            debugLog += message + "\n";
+            debugElement.textContent = debugLog;
+        }
+
         async function validate() {
-            const statusElement = document.getElementById('status');
             try {
+                log("1. Menginisialisasi koneksi ke Firebase...");
                 const app = initializeApp(firebaseConfig);
                 const db = getFirestore(app);
+                log("   => Koneksi berhasil.");
 
+                log("\n2. Membaca key dari parameter URL...");
                 const urlParams = new URLSearchParams(window.location.search);
                 const userKey = urlParams.get('key');
 
                 if (!userKey) {
+                    log("   => GAGAL: Tidak ada parameter '?key=' di URL.");
                     statusElement.textContent = 'INVALID_NO_KEY';
                     return;
                 }
+                log(`   => Key yang diterima: ${userKey}`);
 
+                log("\n3. Mencari key di database (tanpa memeriksa tanggal)...");
                 const keysRef = collection(db, "premiumKeys");
-                const q = query(
-                    keysRef, 
-                    where("key", "==", userKey), 
-                    where("expiry", ">", Timestamp.now())
-                );
-                
-                const querySnapshot = await getDocs(q);
+                const q_check_existence = query(keysRef, where("key", "==", userKey));
+                const existenceSnapshot = await getDocs(q_check_existence);
 
-                if (!querySnapshot.empty) {
-                    statusElement.textContent = 'VALID';
+                if (existenceSnapshot.empty) {
+                    log("   => HASIL: GAGAL. Dokumen dengan key tersebut TIDAK DITEMUKAN sama sekali di database.");
+                    statusElement.textContent = 'INVALID: KEY NOT FOUND';
+                    return;
+                }
+                
+                log(`   => HASIL: SUKSES. Dokumen ditemukan (${existenceSnapshot.size} buah).`);
+                
+                const keyData = existenceSnapshot.docs[0].data();
+                const expiryTimestamp = keyData.expiry;
+                const expiryDate = expiryTimestamp.toDate();
+                log(`   => Tanggal Kedaluwarsa di Database: ${expiryDate.toString()}`);
+
+                log("\n4. Membandingkan dengan waktu server saat ini...");
+                const now = Timestamp.now().toDate();
+                log(`   => Waktu Server Saat Ini: ${now.toString()}`);
+                
+                if (expiryDate > now) {
+                    log(`   => KESIMPULAN: VALID. Tanggal kedaluwarsa (${expiryDate.toLocaleDateString()}) masih di masa depan.`);
+                    statusElement.innerHTML = '<span class="success">VALID</span>';
                 } else {
-                    statusElement.textContent = 'INVALID';
+                    log(`   => KESIMPULAN: EXPIRED. Tanggal kedaluwarsa (${expiryDate.toLocaleDateString()}) sudah lewat.`);
+                    statusElement.innerHTML = '<span class="fail">INVALID: EXPIRED</span>';
                 }
 
             } catch (error) {
+                log("\n\n!!! TERJADI ERROR KRITIS !!!");
+                log(error.message);
                 console.error("Validation Error:", error);
                 statusElement.textContent = 'ERROR';
             }
