@@ -24,27 +24,43 @@
 
         async function validate() {
             const statusElement = document.getElementById('status');
-
             try {
                 const app = initializeApp(firebaseConfig);
                 const db = getFirestore(app);
+
                 const urlParams = new URLSearchParams(window.location.search);
-                const userKey = urlParams.get('key'); 
+                const userKey = urlParams.get('key');
+
                 if (!userKey) {
                     statusElement.textContent = 'INVALID_NO_KEY';
                     return;
                 }
 
+                // ===================================================================
+                // === LOGIKA BARU YANG LEBIH AKURAT ===
+                //
+                // Query ini meminta Firebase untuk:
+                // 1. Mencari dokumen yang field 'key'-nya sama dengan 'userKey'.
+                // 2. DAN (ini yang penting) yang field 'expiry'-nya LEBIH BESAR DARI
+                //    waktu server SAAT INI (Timestamp.now()).
+                //
+                // Jika ada dokumen yang cocok, berarti key itu ada DAN belum kedaluwarsa.
+                // Semua perbandingan waktu terjadi di server, jadi tidak ada masalah timezone.
+                // ===================================================================
                 const keysRef = collection(db, "premiumKeys");
-                const q = query(keysRef, 
-                    where("key", "==", userKey),
-                    where("expiry", ">", Timestamp.now
+                const q = query(
+                    keysRef, 
+                    where("key", "==", userKey), 
+                    where("expiry", ">", Timestamp.now())
                 );
                 
                 const querySnapshot = await getDocs(q);
+
+                // Jika querySnapshot menemukan setidaknya satu dokumen, berarti key itu VALID.
                 if (!querySnapshot.empty) {
                     statusElement.textContent = 'VALID';
                 } else {
+                    // Jika tidak ada yang cocok, berarti key tidak ada atau sudah kedaluwarsa.
                     statusElement.textContent = 'INVALID';
                 }
 
@@ -53,6 +69,7 @@
                 statusElement.textContent = 'ERROR';
             }
         }
+
         validate();
     </script>
 </body>
