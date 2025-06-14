@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Key Validator</title>
+</head>
+<body>
+    <pre id="status">INVALID</pre>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyDCZrt54NfMZkTzpsX-ZJBhA2Qh9a4ATQU",
+          authDomain: "keycodm-add11.firebaseapp.com",
+          databaseURL: "https://keycodm-add11-default-rtdb.asia-southeast1.firebasedatabase.app",
+          projectId: "keycodm-add11",
+          storageBucket: "keycodm-add11.appspot.com",
+          messagingSenderId: "203989625230",
+          appId: "1:203989625230:web:7fd9631e5fa9d02e76dcdf",
+          measurementId: "G-6PDW8Z787R"
+        };
+
+        async function validate() {
+            const statusElement = document.getElementById('status');
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                const db = getFirestore(app);
+                const urlParams = new URLSearchParams(window.location.search);
+                const userKey = urlParams.get('key'); 
+                if (!userKey) {
+                    statusElement.textContent = 'INVALID_NO_KEY';
+                    return;
+                }
+
+                const keysRef = collection(db, "premiumKeys");
+                const q = query(keysRef, 
+                    where("key", "==", userKey),
+                    where("expiry", ">", Timestamp.now
+                );
+                
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    statusElement.textContent = 'VALID';
+                } else {
+                    statusElement.textContent = 'INVALID';
+                }
+
+            } catch (error) {
+                console.error("Validation Error:", error);
+                statusElement.textContent = 'ERROR';
+            }
+        }
+        validate();
+    </script>
+</body>
+</html>
+
